@@ -1,0 +1,2184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>cueWebApp - WAV & DAW Marker Edition</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    input, textarea, select {
+      user-select: text;
+    }
+    .font-mono-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    .pb-safe {
+      padding-bottom: env(safe-area-inset-bottom, 16px);
+    }
+    .pt-safe {
+      padding-top: env(safe-area-inset-top, 0px);
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    .touch-press:active {
+      transform: scale(0.97);
+      transition: transform 0.08s ease;
+    }
+    .active-tile {
+      background: linear-gradient(135deg, #0284c7, #0369a1) !important;
+      border-color: #38bdf8 !important;
+      color: #ffffff !important;
+      box-shadow: 0 0 24px rgba(56, 189, 248, 0.45);
+    }
+    .cue-pulse {
+      animation: pulse-border 1.5s infinite;
+    }
+    @keyframes pulse-border {
+      0%, 100% { border-color: rgba(56, 189, 248, 0.9); box-shadow: 0 0 15px rgba(56, 189, 248, 0.4); }
+      50% { border-color: rgba(56, 189, 248, 0.4); box-shadow: 0 0 6px rgba(56, 189, 248, 0.2); }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen md:h-screen md:overflow-hidden flex flex-col selection:bg-cyan-500 selection:text-slate-950 pb-28 md:pb-0">
+
+  <!-- ヘッダー -->
+  <header class="border-b border-slate-800 bg-slate-900/95 sticky top-0 z-40 px-3 sm:px-6 py-2.5 pt-safe flex items-center justify-between shrink-0 shadow-md">
+    <div class="flex items-center space-x-3">
+      <div class="flex items-center gap-2">
+        <span class="text-base sm:text-lg md:text-xl font-black text-white tracking-tight flex items-center gap-1.5">
+          <svg class="w-5 h-5 text-cyan-400 inline-block" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+          </svg>
+          cueWebApp
+        </span>
+        <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-500/50 font-mono-num font-bold tracking-wider">WAV DAW</span>
+      </div>
+      <span id="autoSaveIndicator" class="text-[11px] font-mono-num text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/50 hidden md:inline-block">● 自動保存</span>
+    </div>
+
+    <!-- モード切替 & REAPER / JSON 入出力 -->
+    <div class="flex items-center gap-1.5 sm:gap-2">
+      <!-- 演奏/編集/ファイル 切り替えタブ -->
+      <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs sm:text-sm">
+        <button id="btnModePlay" class="touch-press px-3 sm:px-4 py-1.5 rounded-lg font-bold transition bg-cyan-600 text-white shadow-sm flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+          <span>演奏</span>
+        </button>
+        <button id="btnModeEdit" class="touch-press px-3 sm:px-4 py-1.5 rounded-lg font-semibold transition text-slate-400 hover:text-slate-200 flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          <span>編集</span>
+        </button>
+        <button id="btnModeFiles" class="touch-press px-3 sm:px-4 py-1.5 rounded-lg font-semibold transition text-slate-400 hover:text-slate-200 flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+          <span>保存一覧</span>
+        </button>
+      </div>
+
+      <div class="h-5 w-px bg-slate-800 mx-0.5 sm:mx-1 hidden lg:block"></div>
+
+      <!-- デモ音源ボタン (すぐに試せる機能) -->
+      <button id="btnDemoLoad" class="touch-press text-xs px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-950/70 hover:bg-amber-900/80 text-amber-300 border border-amber-600/50 transition flex items-center gap-1 shrink-0" title="REAPERマーカー付きサンプル音源を生成して読み込みます">
+        <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        <span class="font-bold hidden sm:inline">デモ音源</span>
+      </button>
+
+      <!-- エクスポート/インポート メニュー -->
+      <div class="relative inline-block text-left">
+        <button id="btnExportMenu" class="text-xs px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1">
+          <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+          <span class="hidden sm:inline">入出力</span>
+          <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div id="exportDropdown" class="hidden absolute right-0 mt-2 w-56 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1 z-50 text-xs">
+          <button id="btnExportReaperCsv" class="w-full text-left px-3 py-2 text-slate-200 hover:bg-slate-800 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>REAPER用 CSV エクスポート</span>
+          </button>
+          <button id="btnExportJson" class="w-full text-left px-3 py-2 text-slate-200 hover:bg-slate-800 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+            <span>プロジェクト JSON エクスポート</span>
+          </button>
+          <div class="border-t border-slate-800 my-1"></div>
+          <label class="w-full text-left px-3 py-2 text-slate-200 hover:bg-slate-800 flex items-center gap-2 cursor-pointer">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span>REAPER CSV インポート</span>
+            <input type="file" id="reaperCsvInput" accept=".csv,.txt" class="hidden">
+          </label>
+          <label class="w-full text-left px-3 py-2 text-slate-200 hover:bg-slate-800 flex items-center gap-2 cursor-pointer">
+            <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+            <span>JSON インポート</span>
+            <input type="file" id="jsonFileInput" accept=".json" class="hidden">
+          </label>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- メインコンテンツ (左右2カラム構成) -->
+  <main class="flex-1 w-full p-2.5 sm:p-4 md:p-6 flex flex-col md:flex-row gap-4 md:overflow-hidden">
+
+    <!-- 左カラム: 波形、タイムライン、音源情報、コントローラー -->
+    <div class="w-full md:w-7/12 lg:w-3/5 flex flex-col gap-3 shrink-0 md:overflow-y-auto pr-0 md:pr-1">
+
+      <!-- WAVファイル ドロップゾーン -->
+      <div id="dropZone" class="relative rounded-2xl border-2 border-dashed border-slate-800 hover:border-cyan-500 bg-slate-900/60 p-3 transition cursor-pointer shrink-0 group">
+        <input type="file" id="audioFileInput" accept=".wav,audio/wav,audio/x-wav,audio/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+        
+        <div id="uploadPrompt" class="flex flex-col sm:flex-row items-center justify-center gap-2.5 py-2 text-center">
+          <div class="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-cyan-400 group-hover:scale-105 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+          </div>
+          <div class="text-left">
+            <p class="text-xs sm:text-sm font-bold text-slate-200">
+              DAWで書き出したWAVファイルを選択 または ドロップ
+            </p>
+            <p class="text-[11px] text-slate-400">
+              REAPERなどの「Embed project markers/regions」付きWAVのCUEマーカーを自動解析します
+            </p>
+          </div>
+        </div>
+
+        <div id="fileLoadedInfo" class="hidden flex items-center justify-between">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-xl bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shrink-0">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <p id="loadedFileName" class="text-xs sm:text-sm font-bold text-slate-100 truncate font-mono-num">song.wav</p>
+                <span id="badgeMarkerCount" class="text-[10px] px-1.5 py-0.2 rounded bg-cyan-900/60 text-cyan-300 border border-cyan-700/60 font-mono-num">0 CUE</span>
+              </div>
+              <p id="loadedFileMeta" class="text-[11px] text-slate-400 font-mono-num">44.1kHz / 16bit Stereo</p>
+            </div>
+          </div>
+          <button id="changeFileBtn" class="text-xs px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 relative z-20 border border-slate-700 shrink-0">ファイル変更</button>
+        </div>
+      </div>
+
+      <!-- オーディオプレイヤー & 波形カード -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/90 p-3 sm:p-4 shadow-lg flex flex-col gap-3">
+        
+        <!-- 現在のキュー & 時間表示ヘッダー -->
+        <div class="flex items-center justify-between bg-slate-950/80 p-3 rounded-xl border border-slate-800/80">
+          <div class="flex flex-col min-w-0">
+            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+              CURRENT CUE
+            </span>
+            <div class="flex items-baseline gap-2 truncate">
+              <span id="activeMarkerLabel" class="text-base sm:text-xl md:text-2xl font-black text-cyan-400 font-mono-num tracking-wide truncate">
+                未選択 (クリックで再生)
+              </span>
+            </div>
+            <div class="flex items-center gap-2 text-[11px] text-slate-400 font-mono-num">
+              <span>NEXT:</span>
+              <span id="nextMarkerLabel" class="text-slate-300 truncate font-semibold">--</span>
+            </div>
+          </div>
+
+          <div class="flex flex-col items-end shrink-0 pl-2">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">TIME</span>
+            <div class="flex items-baseline gap-1 font-mono-num">
+              <span id="currentTimeDisplay" class="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white">00:00.000</span>
+            </div>
+            <div class="flex items-center gap-1 text-[11px] text-slate-400 font-mono-num">
+              <span>TOTAL</span>
+              <span id="totalDurationDisplay">00:00.000</span>
+              <span class="text-slate-600">/</span>
+              <span class="text-slate-400" id="remainingTimeDisplay">-00:00.000</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- インタラクティブ波形キャンバス & タイムライン -->
+        <div class="relative w-full h-32 sm:h-36 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 cursor-pointer select-none touch-none shadow-inner" id="waveformContainer">
+          <!-- 波形描画Canvas -->
+          <canvas id="waveformCanvas" class="w-full h-full block"></canvas>
+
+          <!-- プレロール/再生ヘッド/再生済みオーバーレイ -->
+          <div id="playedBar" class="absolute top-0 bottom-0 left-0 bg-cyan-500/15 pointer-events-none" style="width: 0%;"></div>
+          <div id="playhead" class="absolute top-0 bottom-0 w-[2px] bg-cyan-400 pointer-events-none z-30 -translate-x-1/2 shadow-[0_0_12px_#38bdf8]" style="left: 0%;">
+            <div class="w-2.5 h-2.5 bg-cyan-400 rounded-full -translate-x-[4px] -translate-y-1 shadow"></div>
+          </div>
+
+          <!-- マーカーピンオーバーレイ -->
+          <div id="markerPinsOverlay" class="absolute inset-0 pointer-events-none z-20 overflow-hidden"></div>
+
+          <!-- 未ロード時のプレースホルダー表示 -->
+          <div id="waveformPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-1.5 pointer-events-none">
+            <svg class="w-8 h-8 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+            </svg>
+            <span class="text-xs">WAVファイルを読み込むと波形とマーカーが表示されます</span>
+          </div>
+        </div>
+
+        <!-- 再生機能オプションバー (助走再生 / 1曲停止 / ループ / 速度) -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+          <!-- 助走再生 (Preroll) -->
+          <div class="flex items-center justify-between bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+            <button id="btnPrerollToggle" class="touch-press px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-800 text-slate-400 border border-slate-700">
+              <span id="prerollDot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+              <span>助走再生</span>
+            </button>
+            <select id="prerollSecSelect" class="bg-transparent text-cyan-300 font-mono-num font-bold text-xs px-1 py-1 focus:outline-none cursor-pointer">
+              <option value="1" class="bg-slate-900 text-white">1秒</option>
+              <option value="2" selected class="bg-slate-900 text-white">2秒</option>
+              <option value="3" class="bg-slate-900 text-white">3秒</option>
+              <option value="4" class="bg-slate-900 text-white">4秒</option>
+              <option value="5" class="bg-slate-900 text-white">5秒</option>
+            </select>
+          </div>
+
+          <!-- 1曲・1区間停止 (Auto Pause) -->
+          <button id="btnAutoStopToggle" class="touch-press flex items-center justify-between px-2.5 py-1.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200 transition font-bold" title="次のキューに到達した時点で自動停止して待機します">
+            <span class="flex items-center gap-1.5">
+              <span id="autoStopDot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+              <span>次Cueで停止</span>
+            </span>
+            <span class="text-[10px] text-slate-500 font-mono-num">AUTO</span>
+          </button>
+
+          <!-- 区間ループ (Loop) -->
+          <button id="btnLoopToggle" class="touch-press flex items-center justify-between px-2.5 py-1.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200 transition font-bold" title="現在のキュー区間（次のキューまで、またはリージョン区間）を繰り返しループ再生します">
+            <span class="flex items-center gap-1.5">
+              <span id="loopDot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+              <span>区間ループ</span>
+            </span>
+            <span class="text-[10px] text-slate-500 font-mono-num">LOOP</span>
+          </button>
+
+          <!-- 再生速度 -->
+          <div class="flex items-center justify-between bg-slate-950 px-2 py-1.5 rounded-xl border border-slate-800">
+            <span class="text-slate-400 font-semibold text-[11px]">速度:</span>
+            <select id="playbackRateSelect" class="bg-transparent text-cyan-300 font-mono-num font-bold text-xs focus:outline-none cursor-pointer">
+              <option value="0.5" class="bg-slate-900 text-white">0.5x</option>
+              <option value="0.75" class="bg-slate-900 text-white">0.75x</option>
+              <option value="0.85" class="bg-slate-900 text-white">0.85x</option>
+              <option value="1.0" selected class="bg-slate-900 text-white">1.0x</option>
+              <option value="1.15" class="bg-slate-900 text-white">1.15x</option>
+              <option value="1.25" class="bg-slate-900 text-white">1.25x</option>
+              <option value="1.5" class="bg-slate-900 text-white">1.5x</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- メインコントロールバー (PC / タブレット用) -->
+        <div class="hidden md:flex items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+          <!-- ボリュームコントロール -->
+          <div class="flex items-center gap-2">
+            <button id="btnMute" class="touch-press p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">
+              <svg id="volIcon" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+              <svg id="muteIcon" class="w-4 h-4 hidden text-rose-400" fill="currentColor" viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27l4.73 4.73H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+            </button>
+            <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" class="w-20 accent-cyan-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+          </div>
+
+          <!-- 再生トランスポート -->
+          <div class="flex items-center gap-2">
+            <button id="btnPrevCue" class="touch-press px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-bold text-xs text-slate-200 shadow-sm flex items-center gap-1" title="前のCue [ [ ]">
+              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+              <span>前Cue</span>
+            </button>
+            <button id="btnPcRewind" class="touch-press px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-mono-num font-bold text-xs text-slate-200 shadow-sm">-5s</button>
+            
+            <button id="btnPcPlayPause" class="touch-press px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-sm shadow flex items-center gap-2 min-w-[100px] justify-center">
+              <svg id="pcPlayIcon" class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+              <svg id="pcPauseIcon" class="w-4 h-4 fill-current hidden" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+              <span id="btnPcPlayText">再生</span>
+            </button>
+
+            <button id="btnPcStop" class="touch-press px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs shadow-sm flex items-center gap-1" title="停止して現在のCue先頭に戻る [S]">
+              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+              <span>Cue頭</span>
+            </button>
+
+            <button id="btnPcForward" class="touch-press px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-mono-num font-bold text-xs text-slate-200 shadow-sm">+5s</button>
+            <button id="btnNextCue" class="touch-press px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-bold text-xs text-slate-200 shadow-sm flex items-center gap-1" title="次のCue [ ] ]">
+              <span>次Cue</span>
+              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+            </button>
+          </div>
+
+          <!-- マーク追加ボタン -->
+          <button id="btnPcAddMarker" class="touch-press px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow flex items-center gap-1 shrink-0" title="現在位置にマーカー追加 [M]">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" /></svg>
+            <span>マーク追加 (M)</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- ショートカットガイド & ヒント -->
+      <div class="rounded-xl border border-slate-800/80 bg-slate-900/40 p-2.5 text-[11px] text-slate-400 hidden sm:flex items-center justify-between">
+        <span class="flex items-center gap-1 text-slate-300 font-semibold">
+          <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          キー操作:
+        </span>
+        <div class="flex items-center gap-3 font-mono-num text-[11px]">
+          <span><kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">Space</kbd> 再生/停止</span>
+          <span><kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">1..9</kbd> キュー即時再生</span>
+          <span><kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">[ / ]</kbd> 前後Cue</span>
+          <span><kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">S</kbd> Cue頭出し</span>
+          <span><kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">M</kbd> マーカー追加</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 右カラム: モード別表示エリア (演奏 / 編集 / 保存一覧) -->
+    <div class="flex-1 w-full min-h-0 flex flex-col md:overflow-hidden">
+
+      <!-- VIEW 1: 演奏モード (CUE PADS) -->
+      <div id="playView" class="flex-1 flex flex-col gap-2 md:overflow-hidden">
+        <div class="flex items-center justify-between px-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs md:text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-cyan-400" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6h4v4H4zm0 8h4v4H4zm8-8h4v4h-4zm0 8h4v4h-4zm8-8h4v4h-4zm0 8h4v4h-4z"/></svg>
+              CUE PADS (クリックで即時頭出し再生)
+            </span>
+          </div>
+          <span class="text-xs text-slate-400 font-mono-num bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800" id="playMarkerCount">0 個のキュー</span>
+        </div>
+
+        <div class="flex-1 md:overflow-y-auto pr-1">
+          <div id="playTilesGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 md:gap-3.5 pb-6">
+            <div id="emptyPlayMsg" class="col-span-full py-20 text-center text-slate-500 text-xs sm:text-sm rounded-2xl border border-dashed border-slate-800/80 bg-slate-900/40 px-4">
+              <p class="font-bold text-slate-400 mb-1">マーカーが登録されていません</p>
+              <p>REAPER等でマーカーを含めてWAV出力するか、「デモ音源」ボタン、または「編集」タブ・[M]キーでマーカーを追加してください。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 2: 編集モード -->
+      <div id="editView" class="hidden flex-1 flex flex-col gap-2 md:overflow-hidden">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs md:text-sm font-bold text-slate-300">登録マーカー一覧 (<span id="markerCountBadge">0</span>)</span>
+          <div class="flex items-center gap-2">
+            <button id="sortMarkersBtn" class="touch-press text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">時間順に整列</button>
+            <button id="clearAllMarkersBtn" class="touch-press text-xs px-3 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40">全消去</button>
+          </div>
+        </div>
+
+        <div class="flex-1 md:overflow-y-auto pr-1 pb-6">
+          <div id="markersList" class="flex flex-col gap-2">
+            <div id="emptyMarkersMsg" class="py-20 text-center text-slate-500 text-xs sm:text-sm rounded-2xl border border-dashed border-slate-800/80 bg-slate-900/40 px-4">
+              マーカーがありません。[M] キーで再生中に打刻するか、「デモ音源」を試してください。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 3: 保存プロジェクト一覧 -->
+      <div id="filesView" class="hidden flex-1 flex flex-col gap-3 md:overflow-hidden">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs md:text-sm font-semibold text-slate-300">ブラウザ保存済み音源プロジェクト (<span id="savedCountBadge">0</span>)</span>
+        </div>
+
+        <div class="flex-1 md:overflow-y-auto pr-1 pb-6">
+          <div id="savedProjectsList" class="grid grid-cols-1 gap-2.5">
+            <div id="emptyFilesMsg" class="py-20 text-center text-slate-500 text-xs sm:text-sm rounded-2xl border border-dashed border-slate-800/80 bg-slate-900/40">
+              保存されたプロジェクトはありません。
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- スマホ用 ボトムコントローラー (md以上では非表示) -->
+  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur border-t border-slate-800 px-3 py-2 pb-safe md:hidden shadow-2xl">
+    <div class="max-w-md mx-auto flex items-center justify-between gap-1.5">
+      <button id="btnMobilePrev" class="touch-press w-11 h-11 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+      </button>
+
+      <button id="btnMobileRewind" class="touch-press w-11 h-11 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center shrink-0">
+        <span class="text-[11px] font-mono-num font-bold">-5s</span>
+      </button>
+
+      <button id="btnMobilePlayPause" class="touch-press w-14 h-12 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 flex items-center justify-center shrink-0 shadow font-bold">
+        <svg id="mobilePlayIcon" class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+        <svg id="mobilePauseIcon" class="w-6 h-6 fill-current hidden" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+      </button>
+
+      <button id="btnMobileForward" class="touch-press w-11 h-11 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center shrink-0">
+        <span class="text-[11px] font-mono-num font-bold">+5s</span>
+      </button>
+
+      <button id="btnMobileNext" class="touch-press w-11 h-11 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+      </button>
+
+      <button id="btnMobileAddMarker" class="touch-press w-11 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold flex items-center justify-center shrink-0 shadow">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" /></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- トースト通知 -->
+  <div id="toast" class="fixed top-14 left-1/2 -translate-x-1/2 bg-slate-800/95 text-cyan-300 border border-cyan-500/40 px-4 py-2 rounded-xl shadow-2xl opacity-0 pointer-events-none transition duration-150 z-50 text-xs sm:text-sm font-medium flex items-center gap-2">
+    <span id="toastMsg">通知</span>
+  </div>
+
+  <!-- Audio Element (バックグラウンド再生) -->
+  <audio id="audioElement" preload="auto" class="hidden"></audio>
+
+  <script>
+    // ==========================================
+    // アプリケーション状態
+    // ==========================================
+    const state = {
+      mode: 'play',
+      audioDuration: 0,
+      audioFileName: '',
+      audioBlob: null,
+      audioBuffer: null,
+      sampleRate: 44100,
+      channels: 2,
+      bitsPerSample: 16,
+      markers: [], // Array<{ id, name, note, timeSec, timeMs, isRegion, lengthSec, lengthMs, color }>
+      currentMarkerIndex: -1,
+      prerollEnabled: false,
+      prerollSec: 2.0,
+      autoStopEnabled: false,
+      loopEnabled: false,
+      isCountdown: false,
+      activeCueTargetSec: 0
+    };
+
+    let isScrubbing = false;
+    let countdownTimer = null;
+    let animFrameId = null;
+
+    // DOM参照
+    const audioElement = document.getElementById('audioElement');
+    const audioFileInput = document.getElementById('audioFileInput');
+    const dropZone = document.getElementById('dropZone');
+    const uploadPrompt = document.getElementById('uploadPrompt');
+    const fileLoadedInfo = document.getElementById('fileLoadedInfo');
+    const loadedFileName = document.getElementById('loadedFileName');
+    const loadedFileMeta = document.getElementById('loadedFileMeta');
+    const badgeMarkerCount = document.getElementById('badgeMarkerCount');
+    const changeFileBtn = document.getElementById('changeFileBtn');
+    const btnDemoLoad = document.getElementById('btnDemoLoad');
+
+    const currentTimeDisplay = document.getElementById('currentTimeDisplay');
+    const totalDurationDisplay = document.getElementById('totalDurationDisplay');
+    const remainingTimeDisplay = document.getElementById('remainingTimeDisplay');
+    const activeMarkerLabel = document.getElementById('activeMarkerLabel');
+    const nextMarkerLabel = document.getElementById('nextMarkerLabel');
+    const markerCountBadge = document.getElementById('markerCountBadge');
+    const playMarkerCount = document.getElementById('playMarkerCount');
+    const savedCountBadge = document.getElementById('savedCountBadge');
+
+    const waveformContainer = document.getElementById('waveformContainer');
+    const waveformCanvas = document.getElementById('waveformCanvas');
+    const waveformPlaceholder = document.getElementById('waveformPlaceholder');
+    const playedBar = document.getElementById('playedBar');
+    const playhead = document.getElementById('playhead');
+    const markerPinsOverlay = document.getElementById('markerPinsOverlay');
+
+    // オプションボタン
+    const btnPrerollToggle = document.getElementById('btnPrerollToggle');
+    const prerollDot = document.getElementById('prerollDot');
+    const prerollSecSelect = document.getElementById('prerollSecSelect');
+    const btnAutoStopToggle = document.getElementById('btnAutoStopToggle');
+    const autoStopDot = document.getElementById('autoStopDot');
+    const btnLoopToggle = document.getElementById('btnLoopToggle');
+    const loopDot = document.getElementById('loopDot');
+    const playbackRateSelect = document.getElementById('playbackRateSelect');
+
+    // トランスポート
+    const btnPcPlayPause = document.getElementById('btnPcPlayPause');
+    const pcPlayIcon = document.getElementById('pcPlayIcon');
+    const pcPauseIcon = document.getElementById('pcPauseIcon');
+    const btnPcPlayText = document.getElementById('btnPcPlayText');
+    const btnPcStop = document.getElementById('btnPcStop');
+    const btnPcRewind = document.getElementById('btnPcRewind');
+    const btnPcForward = document.getElementById('btnPcForward');
+    const btnPrevCue = document.getElementById('btnPrevCue');
+    const btnNextCue = document.getElementById('btnNextCue');
+    const btnPcAddMarker = document.getElementById('btnPcAddMarker');
+    const btnMute = document.getElementById('btnMute');
+    const volIcon = document.getElementById('volIcon');
+    const muteIcon = document.getElementById('muteIcon');
+    const volumeSlider = document.getElementById('volumeSlider');
+
+    // スマホ用
+    const btnMobilePlayPause = document.getElementById('btnMobilePlayPause');
+    const mobilePlayIcon = document.getElementById('mobilePlayIcon');
+    const mobilePauseIcon = document.getElementById('mobilePauseIcon');
+    const btnMobilePrev = document.getElementById('btnMobilePrev');
+    const btnMobileNext = document.getElementById('btnMobileNext');
+    const btnMobileRewind = document.getElementById('btnMobileRewind');
+    const btnMobileForward = document.getElementById('btnMobileForward');
+    const btnMobileAddMarker = document.getElementById('btnMobileAddMarker');
+
+    // ビュー & リスト
+    const btnModePlay = document.getElementById('btnModePlay');
+    const btnModeEdit = document.getElementById('btnModeEdit');
+    const btnModeFiles = document.getElementById('btnModeFiles');
+    const playView = document.getElementById('playView');
+    const editView = document.getElementById('editView');
+    const filesView = document.getElementById('filesView');
+    const playTilesGrid = document.getElementById('playTilesGrid');
+    const emptyPlayMsg = document.getElementById('emptyPlayMsg');
+    const markersList = document.getElementById('markersList');
+    const emptyMarkersMsg = document.getElementById('emptyMarkersMsg');
+    const sortMarkersBtn = document.getElementById('sortMarkersBtn');
+    const clearAllMarkersBtn = document.getElementById('clearAllMarkersBtn');
+    const savedProjectsList = document.getElementById('savedProjectsList');
+    const emptyFilesMsg = document.getElementById('emptyFilesMsg');
+
+    // 入出力
+    const btnExportMenu = document.getElementById('btnExportMenu');
+    const exportDropdown = document.getElementById('exportDropdown');
+    const btnExportReaperCsv = document.getElementById('btnExportReaperCsv');
+    const btnExportJson = document.getElementById('btnExportJson');
+    const reaperCsvInput = document.getElementById('reaperCsvInput');
+    const jsonFileInput = document.getElementById('jsonFileInput');
+
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toastMsg');
+
+    // ==========================================
+    // トースト通知ヘルパー
+    // ==========================================
+    let toastTimeout = null;
+    function showToast(msg) {
+      toastMsg.textContent = msg;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none');
+      }, 2200);
+    }
+
+    // ==========================================
+    // 時間フォーマット関数
+    // ==========================================
+    function formatTime(seconds) {
+      if (isNaN(seconds) || seconds < 0) seconds = 0;
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      const ms = Math.floor((seconds % 1) * 1000);
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+    }
+
+    function parseTimeString(timeStr) {
+      // 01:23.456 または 83.456
+      if (typeof timeStr === 'number') return timeStr;
+      const parts = timeStr.trim().split(':');
+      if (parts.length === 2) {
+        return (parseFloat(parts[0]) || 0) * 60 + (parseFloat(parts[1]) || 0);
+      } else if (parts.length === 3) {
+        return (parseFloat(parts[0]) || 0) * 3600 + (parseFloat(parts[1]) || 0) * 60 + (parseFloat(parts[2]) || 0);
+      }
+      return parseFloat(timeStr) || 0;
+    }
+
+    // ==========================================
+    // WAVバイナリ解析パーサー (RIFF cue & LIST adtl & iXML)
+    // ==========================================
+    class WavMarkerParser {
+      static parse(arrayBuffer) {
+        const view = new DataView(arrayBuffer);
+        const len = arrayBuffer.byteLength;
+        if (len < 12) throw new Error('WAVファイルサイズが小さすぎます');
+
+        const riffHeader = WavMarkerParser.readAscii(view, 0, 4);
+        const waveHeader = WavMarkerParser.readAscii(view, 8, 4);
+        if (riffHeader !== 'RIFF' || waveHeader !== 'WAVE') {
+          throw new Error('有効なRIFF WAVフォーマットではありません');
+        }
+
+        let sampleRate = 44100;
+        let channels = 2;
+        let bitsPerSample = 16;
+        let audioFormat = 1;
+
+        const rawCues = [];
+        const labels = new Map(); // id -> string
+        const notes = new Map();  // id -> string
+        const regions = new Map(); // id -> { lengthSamples, label }
+        let bextInfo = {};
+
+        let offset = 12;
+        while (offset + 8 <= len) {
+          const chunkId = WavMarkerParser.readAscii(view, offset, 4);
+          const chunkSize = view.getUint32(offset + 4, true);
+          const dataOffset = offset + 8;
+
+          if (dataOffset + chunkSize > len) {
+            // 末尾破損の安全ガード
+            break;
+          }
+
+          if (chunkId === 'fmt ') {
+            audioFormat = view.getUint16(dataOffset, true);
+            channels = view.getUint16(dataOffset + 2, true);
+            sampleRate = view.getUint32(dataOffset + 4, true);
+            bitsPerSample = view.getUint16(dataOffset + 14, true);
+          } else if (chunkId === 'cue ') {
+            const numCues = view.getUint32(dataOffset, true);
+            for (let i = 0; i < numCues; i++) {
+              const recOffset = dataOffset + 4 + i * 24;
+              if (recOffset + 24 <= dataOffset + chunkSize) {
+                const id = view.getUint32(recOffset, true);
+                const pos = view.getUint32(recOffset + 4, true);
+                let sampleOffset = view.getUint32(recOffset + 20, true);
+                // 一部のDAWでdwPositionにサンプル位置が記録される場合のフォールバック
+                if (sampleOffset === 0 && pos > 0) {
+                  sampleOffset = pos;
+                }
+                rawCues.push({ id, pos, sampleOffset });
+              }
+            }
+          } else if (chunkId === 'LIST') {
+            const listType = WavMarkerParser.readAscii(view, dataOffset, 4);
+            if (listType === 'adtl') {
+              let subOffset = dataOffset + 4;
+              const listEnd = dataOffset + chunkSize;
+              while (subOffset + 8 <= listEnd) {
+                const subId = WavMarkerParser.readAscii(view, subOffset, 4);
+                const subSize = view.getUint32(subOffset + 4, true);
+                const subDataOffset = subOffset + 8;
+
+                if (subId === 'labl') {
+                  const cueId = view.getUint32(subDataOffset, true);
+                  const text = WavMarkerParser.readString(view, subDataOffset + 4, subSize - 4);
+                  labels.set(cueId, text);
+                } else if (subId === 'note') {
+                  const cueId = view.getUint32(subDataOffset, true);
+                  const text = WavMarkerParser.readString(view, subDataOffset + 4, subSize - 4);
+                  notes.set(cueId, text);
+                } else if (subId === 'ltxt') {
+                  const cueId = view.getUint32(subDataOffset, true);
+                  const sampleLength = view.getUint32(subDataOffset + 4, true);
+                  let label = '';
+                  if (subSize > 20) {
+                    label = WavMarkerParser.readString(view, subDataOffset + 20, subSize - 20);
+                  }
+                  regions.set(cueId, { sampleLength, label });
+                }
+
+                subOffset += 8 + subSize + (subSize % 2); // RIFF word padding
+              }
+            }
+          } else if (chunkId === 'smpl') {
+            // Sampler loops
+            const numLoops = view.getUint32(dataOffset + 28, true);
+            for (let i = 0; i < numLoops; i++) {
+              const loopOffset = dataOffset + 36 + i * 24;
+              if (loopOffset + 24 <= dataOffset + chunkSize) {
+                const cueId = view.getUint32(loopOffset, true);
+                const startSample = view.getUint32(loopOffset + 8, true);
+                const endSample = view.getUint32(loopOffset + 12, true);
+                if (!rawCues.some(c => c.sampleOffset === startSample)) {
+                  rawCues.push({ id: 1000 + i, pos: 0, sampleOffset: startSample });
+                  regions.set(1000 + i, { sampleLength: Math.max(0, endSample - startSample), label: `Loop ${i + 1}` });
+                }
+              }
+            }
+          }
+
+          offset += 8 + chunkSize + (chunkSize % 2);
+        }
+
+        // CUEとラベルの結合
+        const markers = [];
+        let autoIndex = 1;
+
+        for (const cue of rawCues) {
+          const rgn = regions.get(cue.id);
+          const name = labels.get(cue.id) || (rgn && rgn.label) || `Cue ${autoIndex}`;
+          const note = notes.get(cue.id) || '';
+          const lengthSamples = rgn ? rgn.sampleLength : 0;
+          const timeSec = cue.sampleOffset / sampleRate;
+          const lengthSec = lengthSamples > 0 ? (lengthSamples / sampleRate) : 0;
+
+          markers.push({
+            id: cue.id,
+            name: name.trim() || `Cue ${autoIndex}`,
+            note: note.trim(),
+            timeSec,
+            timeMs: Math.round(timeSec * 1000),
+            isRegion: lengthSamples > 0,
+            lengthSec,
+            lengthMs: Math.round(lengthSec * 1000),
+            color: '#06b6d4'
+          });
+          autoIndex++;
+        }
+
+        // 時間順にソート
+        markers.sort((a, b) => a.timeSec - b.timeSec);
+
+        return {
+          sampleRate,
+          channels,
+          bitsPerSample,
+          audioFormat,
+          markers
+        };
+      }
+
+      static readAscii(view, offset, len) {
+        let str = '';
+        for (let i = 0; i < len; i++) {
+          str += String.fromCharCode(view.getUint8(offset + i));
+        }
+        return str;
+      }
+
+      static readString(view, offset, maxLen) {
+        if (maxLen <= 0) return '';
+        const bytes = new Uint8Array(view.buffer, view.byteOffset + offset, maxLen);
+        let end = 0;
+        while (end < bytes.length && bytes[end] !== 0) end++;
+        try {
+          return new TextDecoder('utf-8').decode(bytes.subarray(0, end));
+        } catch (e) {
+          return WavMarkerParser.readAscii(view, offset, end);
+        }
+      }
+    }
+
+    // ==========================================
+    // REAPERマーカー付きデモWAV生成器 (1クリックで試せる機能)
+    // ==========================================
+    function createDemoWavBlob() {
+      const sampleRate = 44100;
+      const numChannels = 2;
+      const durationSec = 12.0;
+      const numSamples = Math.floor(sampleRate * durationSec);
+      const bytesPerSample = 2; // 16bit
+
+      // PCMバッファ作成 & 音楽的なコードチャイム合成
+      const audioBuffer = new Int16Array(numSamples * numChannels);
+      for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+        let sample = 0;
+        
+        // 4つのセクション（0~3s: イントロ, 3~6s: Aメロ, 6~9s: サビ, 9~12s: アウトロ）
+        if (t < 3.0) {
+          // Intro: 明るいCmajコードアルペジオ
+          sample = Math.sin(2 * Math.PI * 261.63 * t) * 0.35 + Math.sin(2 * Math.PI * 329.63 * t) * 0.25;
+        } else if (t < 6.0) {
+          // Verse: Amコード
+          sample = Math.sin(2 * Math.PI * 220.00 * t) * 0.35 + Math.sin(2 * Math.PI * 329.63 * t) * 0.25;
+        } else if (t < 9.0) {
+          // Chorus (Region): Fmajコード + ビート
+          const beat = Math.sin(2 * Math.PI * 4 * t) > 0.8 ? 0.2 : 0;
+          sample = (Math.sin(2 * Math.PI * 349.23 * t) * 0.3 + Math.sin(2 * Math.PI * 440.00 * t) * 0.3 + beat);
+        } else {
+          // Outro: Gコード
+          sample = Math.sin(2 * Math.PI * 392.00 * t) * 0.35 + Math.sin(2 * Math.PI * 493.88 * t) * 0.25;
+        }
+
+        // エンベロープ減衰
+        const env = Math.min(1.0, (durationSec - t) / 0.5);
+        const val = Math.max(-32767, Math.min(32767, Math.floor(sample * 14000 * env)));
+        audioBuffer[i * 2] = val;     // L
+        audioBuffer[i * 2 + 1] = val; // R
+      }
+
+      // RIFFチャンク構成
+      const fmtChunk = new Uint8Array(24);
+      const fmtView = new DataView(fmtChunk.buffer);
+      writeString(fmtView, 0, 'fmt ');
+      fmtView.setUint32(4, 16, true);
+      fmtView.setUint16(8, 1, true); // PCM
+      fmtView.setUint16(10, numChannels, true);
+      fmtView.setUint32(12, sampleRate, true);
+      fmtView.setUint32(16, sampleRate * numChannels * bytesPerSample, true);
+      fmtView.setUint16(20, numChannels * bytesPerSample, true);
+      fmtView.setUint16(22, 16, true);
+
+      // data chunk
+      const dataSize = audioBuffer.byteLength;
+      const dataHeader = new Uint8Array(8);
+      const dataView = new DataView(dataHeader.buffer);
+      writeString(dataView, 0, 'data');
+      dataView.setUint32(4, dataSize, true);
+
+      // CUE chunk (4 markers: 0.0s, 3.0s, 6.0s, 9.0s)
+      const cueMarkers = [
+        { id: 1, sampleOffset: 0, label: '1. イントロ (Intro)' },
+        { id: 2, sampleOffset: Math.floor(sampleRate * 3.0), label: '2. Aメロ (Verse)' },
+        { id: 3, sampleOffset: Math.floor(sampleRate * 6.0), label: '3. サビ (Chorus - Region)', length: Math.floor(sampleRate * 3.0) },
+        { id: 4, sampleOffset: Math.floor(sampleRate * 9.0), label: '4. アウトロ (Outro)' },
+      ];
+
+      const cueChunkSize = 4 + cueMarkers.length * 24;
+      const cueChunk = new Uint8Array(8 + cueChunkSize);
+      const cueView = new DataView(cueChunk.buffer);
+      writeString(cueView, 0, 'cue ');
+      cueView.setUint32(4, cueChunkSize, true);
+      cueView.setUint32(8, cueMarkers.length, true);
+      for (let i = 0; i < cueMarkers.length; i++) {
+        const o = 12 + i * 24;
+        cueView.setUint32(o, cueMarkers[i].id, true);
+        cueView.setUint32(o + 4, 0, true);
+        writeString(cueView, o + 8, 'data');
+        cueView.setUint32(o + 12, 0, true);
+        cueView.setUint32(o + 16, 0, true);
+        cueView.setUint32(o + 20, cueMarkers[i].sampleOffset, true);
+      }
+
+      // LIST adtl chunk
+      const adtlSubParts = [];
+      const encoder = new TextEncoder();
+      for (const m of cueMarkers) {
+        // labl
+        const labelBytes = encoder.encode(m.label + '\0');
+        const lablSize = 4 + labelBytes.length;
+        const lablTotal = 8 + lablSize + (lablSize % 2);
+        const lablBuf = new Uint8Array(lablTotal);
+        const lv = new DataView(lablBuf.buffer);
+        writeString(lv, 0, 'labl');
+        lv.setUint32(4, lablSize, true);
+        lv.setUint32(8, m.id, true);
+        lablBuf.set(labelBytes, 12);
+        adtlSubParts.push(lablBuf);
+
+        // ltxt (if region)
+        if (m.length) {
+          const ltxtSize = 20;
+          const ltxtBuf = new Uint8Array(8 + ltxtSize);
+          const ltv = new DataView(ltxtBuf.buffer);
+          writeString(ltv, 0, 'ltxt');
+          ltv.setUint32(4, ltxtSize, true);
+          ltv.setUint32(8, m.id, true);
+          ltv.setUint32(12, m.length, true);
+          writeString(ltv, 16, 'rgn ');
+          adtlSubParts.push(ltxtBuf);
+        }
+      }
+
+      let adtlSubLength = 0;
+      adtlSubParts.forEach(p => adtlSubLength += p.byteLength);
+
+      const listChunk = new Uint8Array(8 + 4 + adtlSubLength);
+      const listV = new DataView(listChunk.buffer);
+      writeString(listV, 0, 'LIST');
+      listV.setUint32(4, 4 + adtlSubLength, true);
+      writeString(listV, 8, 'adtl');
+      let cur = 12;
+      for (const p of adtlSubParts) {
+        listChunk.set(p, cur);
+        cur += p.byteLength;
+      }
+
+      // RIFF header
+      const totalBody = fmtChunk.byteLength + dataHeader.byteLength + dataSize + cueChunk.byteLength + listChunk.byteLength;
+      const riffHeader = new Uint8Array(12);
+      const riffV = new DataView(riffHeader.buffer);
+      writeString(riffV, 0, 'RIFF');
+      riffV.setUint32(4, 4 + totalBody, true);
+      writeString(riffV, 8, 'WAVE');
+
+      function writeString(v, off, s) {
+        for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i));
+      }
+
+      return new Blob([riffHeader, fmtChunk, dataHeader, audioBuffer.buffer, cueChunk, listChunk], { type: 'audio/wav' });
+    }
+
+    // ==========================================
+    // 音声読み込み & 波形抽出
+    // ==========================================
+    async function loadWavFile(file, isAutoLoaded = false) {
+      try {
+        showToast('WAVファイルを解析中...');
+        const arrayBuffer = await file.arrayBuffer();
+        
+        // 1. WAVメタデータ & マーカー解析
+        let parsed = null;
+        try {
+          parsed = WavMarkerParser.parse(arrayBuffer);
+        } catch (err) {
+          console.warn('RIFF Parser warning:', err);
+        }
+
+        state.audioBlob = file;
+        state.audioFileName = file.name;
+        state.sampleRate = parsed?.sampleRate || 44100;
+        state.channels = parsed?.channels || 2;
+        state.bitsPerSample = parsed?.bitsPerSample || 16;
+
+        if (parsed && parsed.markers.length > 0) {
+          state.markers = parsed.markers;
+        } else if (!isAutoLoaded) {
+          // 既存マーカーを維持するか空にする
+          if (state.markers.length === 0) {
+            state.markers = [];
+          }
+        }
+
+        // 2. AudioContextで波形デコード (失敗時もAudio要素で継続可能に)
+        try {
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+          state.audioBuffer = decodedBuffer;
+          state.audioDuration = decodedBuffer.duration;
+        } catch (ctxErr) {
+          console.warn('AudioContext decode error, fallback to audio element:', ctxErr);
+        }
+
+        // 3. HTML Audio要素にセット
+        const objectUrl = URL.createObjectURL(file);
+        audioElement.src = objectUrl;
+        audioElement.preservesPitch = true;
+        audioElement.load();
+
+        if (!state.audioDuration) {
+          await new Promise((resolve) => {
+            if (audioElement.duration && !isNaN(audioElement.duration)) {
+              state.audioDuration = audioElement.duration;
+              resolve();
+            } else {
+              audioElement.onloadedmetadata = () => {
+                state.audioDuration = audioElement.duration;
+                resolve();
+              };
+              setTimeout(resolve, 600);
+            }
+          });
+        }
+
+        // UI反映
+        loadedFileName.textContent = file.name;
+        loadedFileMeta.textContent = `${state.sampleRate.toLocaleString()}Hz / ${state.bitsPerSample}bit ${state.channels === 1 ? 'Mono' : 'Stereo'}`;
+        badgeMarkerCount.textContent = `${state.markers.length} CUE`;
+        uploadPrompt.classList.add('hidden');
+        fileLoadedInfo.classList.remove('hidden');
+        waveformPlaceholder.classList.add('hidden');
+
+        totalDurationDisplay.textContent = formatTime(state.audioDuration);
+        remainingTimeDisplay.textContent = '-' + formatTime(state.audioDuration);
+
+        renderWaveform();
+        renderMarkerPins();
+        renderPlayTiles();
+        renderMarkersEditList();
+        updateActiveMarkerIndex();
+
+        triggerAutoSave();
+        showToast(`「${file.name}」読み込み完了 (マーカー: ${state.markers.length}個)`);
+
+      } catch (e) {
+        console.error('File load error:', e);
+        showToast('読み込みエラー: ' + (e.message || 'WAVの読み込みに失敗しました'));
+      }
+    }
+
+    // ==========================================
+    // 波形レンダリング (Canvas)
+    // ==========================================
+    function renderWaveform() {
+      if (!state.audioBuffer) return;
+      const canvas = waveformCanvas;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      const width = rect.width;
+      const height = rect.height;
+
+      ctx.clearRect(0, 0, width, height);
+
+      // 背景グリッド線
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, height / 2);
+      ctx.lineTo(width, height / 2);
+      ctx.stroke();
+
+      // リージョンハイライト背景
+      state.markers.forEach(m => {
+        if (m.isRegion && m.lengthSec > 0 && state.audioDuration > 0) {
+          const startX = (m.timeSec / state.audioDuration) * width;
+          const endX = ((m.timeSec + m.lengthSec) / state.audioDuration) * width;
+          ctx.fillStyle = 'rgba(6, 182, 212, 0.15)';
+          ctx.fillRect(startX, 0, Math.max(2, endX - startX), height);
+          ctx.strokeStyle = 'rgba(6, 182, 212, 0.35)';
+          ctx.strokeRect(startX, 0, Math.max(2, endX - startX), height);
+        }
+      });
+
+      // ピークデータサンプリング
+      const channelData = state.audioBuffer.getChannelData(0);
+      const numBars = Math.min(width, 600);
+      const blockSize = Math.floor(channelData.length / numBars);
+
+      const gradient = ctx.createLinearGradient(0, 0, 0, height);
+      gradient.addColorStop(0, '#38bdf8');
+      gradient.addColorStop(0.5, '#0284c7');
+      gradient.addColorStop(1, '#0369a1');
+
+      ctx.fillStyle = gradient;
+
+      for (let i = 0; i < numBars; i++) {
+        let max = 0;
+        const start = i * blockSize;
+        for (let j = 0; j < blockSize; j += 4) {
+          const val = Math.abs(channelData[start + j] || 0);
+          if (val > max) max = val;
+        }
+
+        const barHeight = Math.max(2, max * (height * 0.85));
+        const x = (i / numBars) * width;
+        const y = (height - barHeight) / 2;
+        ctx.fillRect(x, y, Math.max(1, width / numBars - 0.5), barHeight);
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      renderWaveform();
+      renderMarkerPins();
+    });
+
+    // ==========================================
+    // タイムラインマーカーピン描画
+    // ==========================================
+    function renderMarkerPins() {
+      markerPinsOverlay.innerHTML = '';
+      if (!state.audioDuration || state.markers.length === 0) return;
+
+      state.markers.forEach((marker, index) => {
+        const pct = (marker.timeSec / state.audioDuration) * 100;
+        if (pct < 0 || pct > 100) return;
+
+        // 垂直線
+        const line = document.createElement('div');
+        line.className = 'absolute top-0 bottom-0 w-[1.5px] bg-cyan-400/70 z-10';
+        line.style.left = `${pct}%`;
+
+        // ピンフラグ (上部バッジ)
+        const flag = document.createElement('div');
+        flag.className = 'absolute top-1 -translate-x-1/2 bg-slate-900/90 text-cyan-300 border border-cyan-500/60 rounded px-1.5 py-0.5 text-[10px] font-mono-num font-bold tracking-tight shadow-md whitespace-nowrap pointer-events-auto cursor-pointer hover:bg-cyan-500 hover:text-slate-950 transition z-20';
+        flag.style.left = `${pct}%`;
+        flag.textContent = marker.name;
+        flag.title = `${marker.name} (${formatTime(marker.timeSec)})`;
+        flag.addEventListener('click', (e) => {
+          e.stopPropagation();
+          jumpToMarker(index);
+        });
+
+        markerPinsOverlay.appendChild(line);
+        markerPinsOverlay.appendChild(flag);
+      });
+    }
+
+    // ==========================================
+    // 演奏モード: キューパッド (Tiles Grid) レンダリング
+    // ==========================================
+    function renderPlayTiles() {
+      playTilesGrid.innerHTML = '';
+      markerCountBadge.textContent = state.markers.length;
+      playMarkerCount.textContent = `${state.markers.length} 個のキュー`;
+
+      if (state.markers.length === 0) {
+        playTilesGrid.appendChild(emptyPlayMsg);
+        emptyPlayMsg.classList.remove('hidden');
+        return;
+      }
+      emptyPlayMsg.classList.add('hidden');
+
+      state.markers.forEach((marker, index) => {
+        const pad = document.createElement('button');
+        const isActive = (index === state.currentMarkerIndex);
+        const shortcutKey = (index < 9) ? String(index + 1) : (index === 9 ? '0' : '');
+
+        pad.className = `touch-press relative flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl border transition-all text-left min-h-[96px] sm:min-h-[110px] group ${
+          isActive 
+            ? 'active-tile cue-pulse' 
+            : 'bg-slate-900/90 hover:bg-slate-800/90 border-slate-800 hover:border-cyan-500/60 text-slate-200'
+        }`;
+
+        pad.innerHTML = `
+          <div class="flex items-start justify-between w-full">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${isActive ? 'bg-cyan-900/80 text-cyan-200' : 'bg-slate-950 text-cyan-400 border border-cyan-800/40'} font-mono-num">
+                CUE ${index + 1}
+              </span>
+              ${marker.isRegion ? `<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-800/60 font-mono-num">RGN</span>` : ''}
+            </div>
+            ${shortcutKey ? `
+              <span class="text-[11px] font-mono-num font-bold px-1.5 py-0.5 rounded ${isActive ? 'bg-white/20 text-white' : 'bg-slate-950/80 text-slate-400 border border-slate-800'}">
+                ${shortcutKey}
+              </span>
+            ` : ''}
+          </div>
+
+          <div class="my-1.5 min-w-0">
+            <p class="text-sm sm:text-base font-extrabold truncate tracking-tight ${isActive ? 'text-white' : 'text-slate-100 group-hover:text-cyan-300'}">
+              ${marker.name}
+            </p>
+            ${marker.note ? `<p class="text-[10px] text-slate-400 truncate">${marker.note}</p>` : ''}
+          </div>
+
+          <div class="flex items-center justify-between text-[11px] font-mono-num ${isActive ? 'text-cyan-100' : 'text-slate-400'} pt-1 border-t ${isActive ? 'border-cyan-400/30' : 'border-slate-800/60'}">
+            <span class="font-bold">${formatTime(marker.timeSec)}</span>
+            ${marker.isRegion ? `<span class="text-[10px]">長: ${marker.lengthSec.toFixed(1)}s</span>` : ''}
+          </div>
+        `;
+
+        pad.addEventListener('click', () => {
+          jumpToMarker(index);
+        });
+
+        playTilesGrid.appendChild(pad);
+      });
+    }
+
+    // ==========================================
+    // 編集モード: マーカー一覧リスト レンダリング
+    // ==========================================
+    function renderMarkersEditList() {
+      markersList.innerHTML = '';
+      if (state.markers.length === 0) {
+        markersList.appendChild(emptyMarkersMsg);
+        emptyMarkersMsg.classList.remove('hidden');
+        return;
+      }
+      emptyMarkersMsg.classList.add('hidden');
+
+      state.markers.forEach((marker, index) => {
+        const item = document.createElement('div');
+        item.className = 'flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition';
+
+        item.innerHTML = `
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="w-7 h-7 rounded-lg bg-slate-950 border border-slate-800 text-cyan-400 text-xs font-mono-num font-bold flex items-center justify-center shrink-0">
+              ${index + 1}
+            </span>
+            <div class="min-w-0 flex-1">
+              <input type="text" value="${escapeHtml(marker.name)}" class="marker-name-input bg-transparent text-sm font-bold text-slate-100 hover:bg-slate-950 focus:bg-slate-950 px-2 py-1 rounded border border-transparent focus:border-cyan-500 focus:outline-none w-full truncate" data-index="${index}">
+              <div class="flex items-center gap-2 text-[11px] font-mono-num text-slate-400 pl-2">
+                <span>位置:</span>
+                <input type="text" value="${formatTime(marker.timeSec)}" class="marker-time-input bg-transparent text-cyan-300 font-bold hover:bg-slate-950 focus:bg-slate-950 px-1 py-0.5 rounded border border-transparent focus:border-cyan-500 focus:outline-none w-24" data-index="${index}">
+                ${marker.isRegion ? `<span class="text-amber-400">区間: ${marker.lengthSec.toFixed(2)}s</span>` : ''}
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+            <button class="btn-jump-marker touch-press text-xs px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1" data-index="${index}">
+              <svg class="w-3.5 h-3.5 text-cyan-400" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              <span>頭出し</span>
+            </button>
+            <button class="btn-delete-marker touch-press text-xs px-2.5 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40" data-index="${index}">
+              削除
+            </button>
+          </div>
+        `;
+
+        // イベント設定
+        const nameInput = item.querySelector('.marker-name-input');
+        nameInput.addEventListener('change', (e) => {
+          marker.name = e.target.value.trim() || `Cue ${index + 1}`;
+          renderPlayTiles();
+          renderMarkerPins();
+          triggerAutoSave();
+        });
+
+        const timeInput = item.querySelector('.marker-time-input');
+        timeInput.addEventListener('change', (e) => {
+          const newTime = parseTimeString(e.target.value);
+          marker.timeSec = Math.max(0, Math.min(state.audioDuration, newTime));
+          marker.timeMs = Math.round(marker.timeSec * 1000);
+          timeInput.value = formatTime(marker.timeSec);
+          renderPlayTiles();
+          renderMarkerPins();
+          triggerAutoSave();
+        });
+
+        item.querySelector('.btn-jump-marker').addEventListener('click', () => {
+          jumpToMarker(index);
+        });
+
+        item.querySelector('.btn-delete-marker').addEventListener('click', () => {
+          state.markers.splice(index, 1);
+          renderMarkerPins();
+          renderPlayTiles();
+          renderMarkersEditList();
+          triggerAutoSave();
+          showToast(`Cue ${index + 1} を削除しました`);
+        });
+
+        markersList.appendChild(item);
+      });
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    // ==========================================
+    // キュー頭出し & 助走再生 (Preroll) ロジック
+    // ==========================================
+    function cancelCountdown() {
+      if (countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+      state.isCountdown = false;
+      currentTimeDisplay.classList.remove('text-amber-400');
+    }
+
+    function jumpToMarker(index) {
+      if (!audioElement.src || index < 0 || index >= state.markers.length) return;
+      state.currentMarkerIndex = index;
+      const marker = state.markers[index];
+      state.activeCueTargetSec = marker.timeSec;
+
+      renderPlayTiles();
+      activeMarkerLabel.textContent = `${marker.name} [Cue ${index + 1}]`;
+
+      const nextM = state.markers[index + 1];
+      nextMarkerLabel.textContent = nextM ? `${nextM.name} (${formatTime(nextM.timeSec)})` : '曲末尾';
+
+      startPlaybackWithPreroll(marker.timeSec);
+    }
+
+    function startPlaybackWithPreroll(targetSec) {
+      cancelCountdown();
+
+      if (!audioElement.src) {
+        showToast('WAVファイルを選択してください');
+        return;
+      }
+
+      // 助走再生が有効かつ、再生位置が助走秒数より手前の場合
+      if (state.prerollEnabled && targetSec < state.prerollSec) {
+        audioElement.pause();
+        audioElement.currentTime = 0;
+        updateProgress();
+
+        state.isCountdown = true;
+        setPlaybackUI(true);
+
+        const totalWaitMs = Math.round(state.prerollSec * 1000);
+        const startTime = Date.now();
+
+        currentTimeDisplay.classList.add('text-amber-400');
+        showToast(`再生まで ${state.prerollSec} 秒待機中...`);
+
+        countdownTimer = setInterval(() => {
+          const elapsed = Date.now() - startTime;
+          const remaining = Math.max(0, (totalWaitMs - elapsed) / 1000);
+
+          currentTimeDisplay.textContent = `WAIT 0${remaining.toFixed(1)}s`;
+
+          if (elapsed >= totalWaitMs) {
+            cancelCountdown();
+            currentTimeDisplay.textContent = formatTime(0);
+            audioElement.play().then(() => setPlaybackUI(true)).catch(err => console.warn(err));
+          }
+        }, 50);
+      } else {
+        const actualStartSec = (state.prerollEnabled && targetSec >= state.prerollSec)
+          ? targetSec - state.prerollSec
+          : targetSec;
+
+        audioElement.currentTime = actualStartSec;
+        audioElement.play().then(() => setPlaybackUI(true)).catch(err => console.warn(err));
+        updateProgress();
+      }
+    }
+
+    function togglePlayPause() {
+      if (!audioElement.src) {
+        showToast('WAVファイルを選択してください');
+        return;
+      }
+
+      if (state.isCountdown) {
+        cancelCountdown();
+        setPlaybackUI(false);
+        currentTimeDisplay.textContent = formatTime(audioElement.currentTime);
+        showToast('待機をキャンセルしました');
+        return;
+      }
+
+      if (audioElement.paused) {
+        startPlaybackWithPreroll(audioElement.currentTime);
+      } else {
+        audioElement.pause();
+        setPlaybackUI(false);
+      }
+    }
+
+    function stopAndReturnToCue() {
+      if (!audioElement.src) return;
+      cancelCountdown();
+      audioElement.pause();
+      setPlaybackUI(false);
+
+      if (state.currentMarkerIndex >= 0 && state.currentMarkerIndex < state.markers.length) {
+        audioElement.currentTime = state.markers[state.currentMarkerIndex].timeSec;
+      } else {
+        audioElement.currentTime = 0;
+      }
+      updateProgress();
+      showToast('Cue頭に戻りました');
+    }
+
+    function setPlaybackUI(isPlaying) {
+      if (isPlaying) {
+        pcPlayIcon.classList.add('hidden');
+        pcPauseIcon.classList.remove('hidden');
+        btnPcPlayText.textContent = '一時停止';
+        btnPcPlayPause.classList.replace('bg-cyan-500', 'bg-amber-400');
+
+        mobilePlayIcon.classList.add('hidden');
+        mobilePauseIcon.classList.remove('hidden');
+        btnMobilePlayPause.classList.replace('bg-cyan-500', 'bg-amber-400');
+
+        startTracking();
+      } else {
+        pcPlayIcon.classList.remove('hidden');
+        pcPauseIcon.classList.add('hidden');
+        btnPcPlayText.textContent = '再生';
+        btnPcPlayPause.classList.replace('bg-amber-400', 'bg-cyan-500');
+
+        mobilePlayIcon.classList.remove('hidden');
+        mobilePauseIcon.classList.add('hidden');
+        btnMobilePlayPause.classList.replace('bg-amber-400', 'bg-cyan-500');
+
+        stopTracking();
+      }
+    }
+
+    // ==========================================
+    // 高精度タイムライン追従 (requestAnimationFrame)
+    // ==========================================
+    function startTracking() {
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      function loop() {
+        if (!audioElement.paused && !state.isCountdown) {
+          updateProgress();
+          checkAutoStopAndLoop();
+        }
+        animFrameId = requestAnimationFrame(loop);
+      }
+      animFrameId = requestAnimationFrame(loop);
+    }
+
+    function stopTracking() {
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+      updateProgress();
+    }
+
+    function updateProgress() {
+      if (!state.audioDuration) return;
+      const cur = audioElement.currentTime;
+
+      if (!state.isCountdown) {
+        currentTimeDisplay.textContent = formatTime(cur);
+        const rem = Math.max(0, state.audioDuration - cur);
+        remainingTimeDisplay.textContent = '-' + formatTime(rem);
+      }
+
+      const pct = Math.min(100, (cur / state.audioDuration) * 100);
+      playhead.style.left = `${pct}%`;
+      playedBar.style.width = `${pct}%`;
+
+      updateActiveMarkerIndex();
+    }
+
+    function updateActiveMarkerIndex() {
+      if (state.markers.length === 0) return;
+      const cur = audioElement.currentTime;
+      let idx = -1;
+
+      for (let i = state.markers.length - 1; i >= 0; i--) {
+        if (cur >= state.markers[i].timeSec - 0.05) {
+          idx = i;
+          break;
+        }
+      }
+
+      if (idx !== state.currentMarkerIndex) {
+        state.currentMarkerIndex = idx;
+        if (idx >= 0) {
+          const m = state.markers[idx];
+          activeMarkerLabel.textContent = `${m.name} [Cue ${idx + 1}]`;
+          const nextM = state.markers[idx + 1];
+          nextMarkerLabel.textContent = nextM ? `${nextM.name} (${formatTime(nextM.timeSec)})` : '曲末尾';
+        } else {
+          activeMarkerLabel.textContent = '冒頭 (Cue前)';
+          nextMarkerLabel.textContent = state.markers[0] ? `${state.markers[0].name} (${formatTime(state.markers[0].timeSec)})` : '--';
+        }
+        renderPlayTiles();
+      }
+    }
+
+    // 次Cue自動停止 (Auto Stop) & 区間ループ (Loop) 判定
+    function checkAutoStopAndLoop() {
+      if (state.currentMarkerIndex < 0) return;
+      const curMarker = state.markers[state.currentMarkerIndex];
+      const nextMarker = state.markers[state.currentMarkerIndex + 1];
+      const cur = audioElement.currentTime;
+
+      // 区間終了点の特定
+      let endSec = state.audioDuration;
+      if (curMarker.isRegion && curMarker.lengthSec > 0) {
+        endSec = curMarker.timeSec + curMarker.lengthSec;
+      } else if (nextMarker) {
+        endSec = nextMarker.timeSec;
+      }
+
+      // ループ処理
+      if (state.loopEnabled && cur >= endSec) {
+        audioElement.currentTime = curMarker.timeSec;
+        return;
+      }
+
+      // 次Cue停止処理
+      if (state.autoStopEnabled && cur >= endSec) {
+        audioElement.pause();
+        audioElement.currentTime = endSec;
+        setPlaybackUI(false);
+        updateProgress();
+
+        if (nextMarker) {
+          state.currentMarkerIndex = state.currentMarkerIndex + 1;
+          renderPlayTiles();
+          showToast(`次Cue [${nextMarker.name}] で停止しました (待機中)`);
+        } else {
+          showToast('曲末尾で停止しました');
+        }
+      }
+    }
+
+    // ==========================================
+    // トランスポート & オプション切り替え
+    // ==========================================
+    function updateOptionsUI() {
+      // 助走
+      if (state.prerollEnabled) {
+        btnPrerollToggle.classList.replace('text-slate-400', 'text-emerald-300');
+        btnPrerollToggle.classList.replace('border-slate-700', 'border-emerald-600/60');
+        prerollDot.classList.replace('bg-slate-500', 'bg-emerald-400');
+      } else {
+        btnPrerollToggle.classList.replace('text-emerald-300', 'text-slate-400');
+        btnPrerollToggle.classList.replace('border-emerald-600/60', 'border-slate-700');
+        prerollDot.classList.replace('bg-emerald-400', 'bg-slate-500');
+      }
+      prerollSecSelect.value = String(state.prerollSec);
+
+      // 次Cue停止
+      if (state.autoStopEnabled) {
+        btnAutoStopToggle.classList.add('bg-cyan-950/60', 'text-cyan-300', 'border-cyan-600/60');
+        autoStopDot.classList.replace('bg-slate-500', 'bg-cyan-400');
+      } else {
+        btnAutoStopToggle.classList.remove('bg-cyan-950/60', 'text-cyan-300', 'border-cyan-600/60');
+        autoStopDot.classList.replace('bg-cyan-400', 'bg-slate-500');
+      }
+
+      // ループ
+      if (state.loopEnabled) {
+        btnLoopToggle.classList.add('bg-indigo-950/60', 'text-indigo-300', 'border-indigo-600/60');
+        loopDot.classList.replace('bg-slate-500', 'bg-indigo-400');
+      } else {
+        btnLoopToggle.classList.remove('bg-indigo-950/60', 'text-indigo-300', 'border-indigo-600/60');
+        loopDot.classList.replace('bg-indigo-400', 'bg-slate-500');
+      }
+    }
+
+    btnPrerollToggle.addEventListener('click', () => {
+      state.prerollEnabled = !state.prerollEnabled;
+      updateOptionsUI();
+      triggerAutoSave();
+      showToast(state.prerollEnabled ? `助走再生 ON: ${state.prerollSec}秒` : '助走再生 OFF');
+    });
+
+    prerollSecSelect.addEventListener('change', (e) => {
+      state.prerollSec = parseFloat(e.target.value) || 2.0;
+      updateOptionsUI();
+      triggerAutoSave();
+      if (state.prerollEnabled) showToast(`助走秒数を ${state.prerollSec}秒 に変更`);
+    });
+
+    btnAutoStopToggle.addEventListener('click', () => {
+      state.autoStopEnabled = !state.autoStopEnabled;
+      updateOptionsUI();
+      triggerAutoSave();
+      showToast(state.autoStopEnabled ? '次Cueで自動停止 ON' : '次Cueで自動停止 OFF');
+    });
+
+    btnLoopToggle.addEventListener('click', () => {
+      state.loopEnabled = !state.loopEnabled;
+      updateOptionsUI();
+      triggerAutoSave();
+      showToast(state.loopEnabled ? '区間ループ ON' : '区間ループ OFF');
+    });
+
+    playbackRateSelect.addEventListener('change', (e) => {
+      const rate = parseFloat(e.target.value) || 1.0;
+      audioElement.playbackRate = rate;
+      showToast(`再生速度: ${rate}x`);
+    });
+
+    // 再生/一時停止
+    btnPcPlayPause.addEventListener('click', togglePlayPause);
+    btnMobilePlayPause.addEventListener('click', togglePlayPause);
+    btnPcStop.addEventListener('click', stopAndReturnToCue);
+
+    // シーク
+    btnPcRewind.addEventListener('click', () => {
+      audioElement.currentTime = Math.max(0, audioElement.currentTime - 5);
+      updateProgress();
+    });
+    btnMobileRewind.addEventListener('click', () => {
+      audioElement.currentTime = Math.max(0, audioElement.currentTime - 5);
+      updateProgress();
+    });
+
+    btnPcForward.addEventListener('click', () => {
+      audioElement.currentTime = Math.min(state.audioDuration, audioElement.currentTime + 5);
+      updateProgress();
+    });
+    btnMobileForward.addEventListener('click', () => {
+      audioElement.currentTime = Math.min(state.audioDuration, audioElement.currentTime + 5);
+      updateProgress();
+    });
+
+    // 前Cue / 次Cue
+    function prevCue() {
+      if (state.markers.length === 0) return;
+      const targetIdx = (state.currentMarkerIndex > 0) ? state.currentMarkerIndex - 1 : 0;
+      jumpToMarker(targetIdx);
+    }
+    function nextCue() {
+      if (state.markers.length === 0) return;
+      const targetIdx = (state.currentMarkerIndex < state.markers.length - 1) ? state.currentMarkerIndex + 1 : state.markers.length - 1;
+      jumpToMarker(targetIdx);
+    }
+
+    btnPrevCue.addEventListener('click', prevCue);
+    btnMobilePrev.addEventListener('click', prevCue);
+    btnNextCue.addEventListener('click', nextCue);
+    btnMobileNext.addEventListener('click', nextCue);
+
+    // 音量 & ミュート
+    volumeSlider.addEventListener('input', (e) => {
+      audioElement.volume = parseFloat(e.target.value);
+      if (audioElement.volume === 0) {
+        volIcon.classList.add('hidden');
+        muteIcon.classList.remove('hidden');
+      } else {
+        volIcon.classList.remove('hidden');
+        muteIcon.classList.add('hidden');
+      }
+    });
+
+    btnMute.addEventListener('click', () => {
+      audioElement.muted = !audioElement.muted;
+      if (audioElement.muted) {
+        volIcon.classList.add('hidden');
+        muteIcon.classList.remove('hidden');
+      } else {
+        volIcon.classList.remove('hidden');
+        muteIcon.classList.add('hidden');
+      }
+    });
+
+    // マーカー追加
+    function addMarkerAtCurrentTime() {
+      if (!audioElement.src) {
+        showToast('音源を読み込んでください');
+        return;
+      }
+      const cur = audioElement.currentTime;
+      const newMarker = {
+        id: Date.now() % 100000,
+        name: `Cue ${state.markers.length + 1}`,
+        note: '',
+        timeSec: cur,
+        timeMs: Math.round(cur * 1000),
+        isRegion: false,
+        lengthSec: 0,
+        lengthMs: 0,
+        color: '#06b6d4'
+      };
+      state.markers.push(newMarker);
+      state.markers.sort((a, b) => a.timeSec - b.timeSec);
+
+      renderMarkerPins();
+      renderPlayTiles();
+      renderMarkersEditList();
+      triggerAutoSave();
+      showToast(`位置 ${formatTime(cur)} に Cue を追加しました`);
+    }
+
+    btnPcAddMarker.addEventListener('click', addMarkerAtCurrentTime);
+    btnMobileAddMarker.addEventListener('click', addMarkerAtCurrentTime);
+
+    // ==========================================
+    // 波形コンテナ上でのシーク (クリック & ドラッグ)
+    // ==========================================
+    function seekFromEvent(e) {
+      if (!state.audioDuration) return;
+      const rect = waveformContainer.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      audioElement.currentTime = ratio * state.audioDuration;
+      updateProgress();
+    }
+
+    waveformContainer.addEventListener('mousedown', (e) => {
+      isScrubbing = true;
+      seekFromEvent(e);
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (isScrubbing) seekFromEvent(e);
+    });
+    window.addEventListener('mouseup', () => {
+      if (isScrubbing) isScrubbing = false;
+    });
+
+    waveformContainer.addEventListener('touchstart', (e) => {
+      isScrubbing = true;
+      seekFromEvent(e);
+    }, { passive: false });
+    waveformContainer.addEventListener('touchmove', (e) => {
+      if (isScrubbing) {
+        e.preventDefault();
+        seekFromEvent(e);
+      }
+    }, { passive: false });
+    waveformContainer.addEventListener('touchend', () => {
+      isScrubbing = false;
+    });
+
+    // ==========================================
+    // モード切り替え (演奏 / 編集 / ファイル一覧)
+    // ==========================================
+    function setMode(newMode) {
+      state.mode = newMode;
+      [btnModePlay, btnModeEdit, btnModeFiles].forEach(btn => {
+        btn.classList.replace('bg-cyan-600', 'text-slate-400');
+        btn.classList.remove('text-white', 'shadow-sm');
+      });
+
+      playView.classList.add('hidden');
+      editView.classList.add('hidden');
+      filesView.classList.add('hidden');
+
+      if (newMode === 'play') {
+        btnModePlay.classList.add('bg-cyan-600', 'text-white', 'shadow-sm');
+        playView.classList.remove('hidden');
+        renderPlayTiles();
+      } else if (newMode === 'edit') {
+        btnModeEdit.classList.add('bg-cyan-600', 'text-white', 'shadow-sm');
+        editView.classList.remove('hidden');
+        renderMarkersEditList();
+      } else if (newMode === 'files') {
+        btnModeFiles.classList.add('bg-cyan-600', 'text-white', 'shadow-sm');
+        filesView.classList.remove('hidden');
+        loadSavedProjectsList();
+      }
+    }
+
+    btnModePlay.addEventListener('click', () => setMode('play'));
+    btnModeEdit.addEventListener('click', () => setMode('edit'));
+    btnModeFiles.addEventListener('click', () => setMode('files'));
+
+    // 整列 & 全消去
+    sortMarkersBtn.addEventListener('click', () => {
+      state.markers.sort((a, b) => a.timeSec - b.timeSec);
+      renderMarkerPins();
+      renderPlayTiles();
+      renderMarkersEditList();
+      triggerAutoSave();
+      showToast('時間順に整列しました');
+    });
+
+    clearAllMarkersBtn.addEventListener('click', () => {
+      if (!confirm('全てのマーカーを削除しますか？')) return;
+      state.markers = [];
+      renderMarkerPins();
+      renderPlayTiles();
+      renderMarkersEditList();
+      triggerAutoSave();
+      showToast('全てのマーカーを削除しました');
+    });
+
+    // ==========================================
+    // ファイル選択 & デモ音源ロード
+    // ==========================================
+    audioFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) loadWavFile(file);
+    });
+
+    changeFileBtn.addEventListener('click', () => {
+      audioFileInput.click();
+    });
+
+    // ドラッグ＆ドロップ
+    ['dragenter', 'dragover'].forEach(name => {
+      dropZone.addEventListener(name, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-cyan-400', 'bg-cyan-950/20');
+      });
+    });
+    ['dragleave', 'drop'].forEach(name => {
+      dropZone.addEventListener(name, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-cyan-400', 'bg-cyan-950/20');
+      });
+    });
+    dropZone.addEventListener('drop', (e) => {
+      const file = e.dataTransfer.files[0];
+      if (file) loadWavFile(file);
+    });
+
+    // デモ音源ボタン
+    btnDemoLoad.addEventListener('click', async () => {
+      showToast('REAPERマーカー付きサンプル音源を生成中...');
+      const blob = createDemoWavBlob();
+      const demoFile = new File([blob], 'demo_song_with_reaper_cues.wav', { type: 'audio/wav' });
+      await loadWavFile(demoFile);
+    });
+
+    // ==========================================
+    // REAPER CSV / JSON 入出力
+    // ==========================================
+    btnExportMenu.addEventListener('click', () => {
+      exportDropdown.classList.toggle('hidden');
+    });
+    window.addEventListener('click', (e) => {
+      if (!btnExportMenu.contains(e.target) && !exportDropdown.contains(e.target)) {
+        exportDropdown.classList.add('hidden');
+      }
+    });
+
+    // REAPER CSV エクスポート
+    btnExportReaperCsv.addEventListener('click', () => {
+      exportDropdown.classList.add('hidden');
+      if (state.markers.length === 0) {
+        showToast('エクスポートするマーカーがありません');
+        return;
+      }
+
+      // REAPER形式: #,Name,Start,End,Length,Color
+      let csv = '#,Name,Start,End,Length,Color\r\n';
+      state.markers.forEach((m, idx) => {
+        const prefix = m.isRegion ? `R${idx + 1}` : `M${idx + 1}`;
+        const startStr = formatTime(m.timeSec);
+        const endStr = m.isRegion ? formatTime(m.timeSec + m.lengthSec) : '';
+        const lenStr = m.isRegion ? formatTime(m.lengthSec) : '';
+        csv += `${prefix},"${(m.name || '').replace(/"/g, '""')}",${startStr},${endStr},${lenStr},\r\n`;
+      });
+
+      downloadFile(csv, `${state.audioFileName || 'markers'}_reaper.csv`, 'text/csv');
+      showToast('REAPER用 CSVを書き出しました');
+    });
+
+    // JSON エクスポート
+    btnExportJson.addEventListener('click', () => {
+      exportDropdown.classList.add('hidden');
+      const data = {
+        title: state.audioFileName,
+        sampleRate: state.sampleRate,
+        duration: state.audioDuration,
+        markers: state.markers,
+        prerollEnabled: state.prerollEnabled,
+        prerollSec: state.prerollSec,
+        autoStopEnabled: state.autoStopEnabled,
+        loopEnabled: state.loopEnabled,
+        exportedAt: new Date().toISOString()
+      };
+      downloadFile(JSON.stringify(data, null, 2), `${state.audioFileName || 'cue_project'}.json`, 'application/json');
+      showToast('JSONプロジェクトを書き出しました');
+    });
+
+    function downloadFile(content, fileName, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // REAPER CSV インポート
+    reaperCsvInput.addEventListener('change', async (e) => {
+      exportDropdown.classList.add('hidden');
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const lines = text.split(/\r?\n/);
+        const imported = [];
+
+        for (const line of lines) {
+          if (!line.trim() || line.startsWith('#')) continue;
+          const cols = line.split(',');
+          if (cols.length < 3) continue;
+
+          const markerTag = cols[0].trim();
+          const name = cols[1].replace(/^"|"$/g, '').trim();
+          const startSec = parseTimeString(cols[2]);
+          const isRegion = markerTag.startsWith('R') || (cols[3] && cols[3].trim() !== '');
+          const endSec = isRegion ? parseTimeString(cols[3]) : 0;
+          const lengthSec = isRegion ? Math.max(0, endSec - startSec) : 0;
+
+          imported.push({
+            id: Date.now() + Math.floor(Math.random() * 10000),
+            name: name || `Cue ${imported.length + 1}`,
+            note: '',
+            timeSec: startSec,
+            timeMs: Math.round(startSec * 1000),
+            isRegion,
+            lengthSec,
+            lengthMs: Math.round(lengthSec * 1000),
+            color: '#06b6d4'
+          });
+        }
+
+        if (imported.length > 0) {
+          state.markers = imported;
+          state.markers.sort((a, b) => a.timeSec - b.timeSec);
+          renderMarkerPins();
+          renderPlayTiles();
+          renderMarkersEditList();
+          triggerAutoSave();
+          showToast(`REAPER CSVから ${imported.length} 個のマーカーを取り込みました`);
+        } else {
+          showToast('有効なマーカーデータが見つかりませんでした');
+        }
+      } catch (err) {
+        showToast('CSVの解析に失敗しました');
+      }
+      reaperCsvInput.value = '';
+    });
+
+    // JSON インポート
+    jsonFileInput.addEventListener('change', async (e) => {
+      exportDropdown.classList.add('hidden');
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        if (json.markers && Array.isArray(json.markers)) {
+          state.markers = json.markers;
+          state.markers.sort((a, b) => a.timeSec - b.timeSec);
+          if (json.prerollEnabled !== undefined) state.prerollEnabled = json.prerollEnabled;
+          if (json.prerollSec !== undefined) state.prerollSec = json.prerollSec;
+          if (json.autoStopEnabled !== undefined) state.autoStopEnabled = json.autoStopEnabled;
+          if (json.loopEnabled !== undefined) state.loopEnabled = json.loopEnabled;
+
+          updateOptionsUI();
+          renderMarkerPins();
+          renderPlayTiles();
+          renderMarkersEditList();
+          triggerAutoSave();
+          showToast(`JSONから ${state.markers.length} 個のマーカーを取り込みました`);
+        }
+      } catch (err) {
+        showToast('JSONの解析に失敗しました');
+      }
+      jsonFileInput.value = '';
+    });
+
+    // ==========================================
+    // IndexedDB 自動保存システム
+    // ==========================================
+    const DB_NAME = 'CueWebAppDB_WavDaw_v1';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'saved_wav_projects';
+    const LAST_OPENED_KEY = 'last_opened_wav_id';
+
+    function initDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    let autoSaveTimeout = null;
+    function triggerAutoSave() {
+      if (!state.audioBlob || !state.audioFileName) return;
+      clearTimeout(autoSaveTimeout);
+      autoSaveTimeout = setTimeout(async () => {
+        try {
+          const db = await initDB();
+          const projId = 'wproj_' + state.audioFileName.replace(/\s+/g, '_');
+          const project = {
+            id: projId,
+            title: state.audioFileName,
+            audioBlob: state.audioBlob,
+            markers: state.markers,
+            sampleRate: state.sampleRate,
+            channels: state.channels,
+            bitsPerSample: state.bitsPerSample,
+            prerollEnabled: state.prerollEnabled,
+            prerollSec: state.prerollSec,
+            autoStopEnabled: state.autoStopEnabled,
+            loopEnabled: state.loopEnabled,
+            updatedAt: Date.now()
+          };
+          const tx = db.transaction(STORE_NAME, 'readwrite');
+          tx.objectStore(STORE_NAME).put(project);
+          tx.oncomplete = () => {
+            localStorage.setItem(LAST_OPENED_KEY, projId);
+            loadSavedProjectsList();
+          };
+        } catch (e) {
+          console.warn('AutoSave error:', e);
+        }
+      }, 400);
+    }
+
+    async function loadSavedProjectsList() {
+      try {
+        const db = await initDB();
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).getAll();
+        req.onsuccess = () => {
+          const list = req.result || [];
+          savedCountBadge.textContent = list.length;
+          renderSavedProjectsList(list);
+        };
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    function renderSavedProjectsList(projects) {
+      savedProjectsList.innerHTML = '';
+      if (projects.length === 0) {
+        savedProjectsList.appendChild(emptyFilesMsg);
+        emptyFilesMsg.classList.remove('hidden');
+        return;
+      }
+      emptyFilesMsg.classList.add('hidden');
+
+      projects.sort((a, b) => b.updatedAt - a.updatedAt);
+
+      projects.forEach((p) => {
+        const item = document.createElement('div');
+        const isCurrent = (state.audioFileName === p.title);
+        const dateStr = new Date(p.updatedAt).toLocaleString('ja-JP');
+
+        item.className = `p-3.5 rounded-xl border transition flex items-center justify-between gap-3 ${
+          isCurrent 
+            ? 'bg-cyan-950/40 border-cyan-500/50 text-cyan-100' 
+            : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 text-slate-200'
+        }`;
+
+        item.innerHTML = `
+          <div class="min-w-0 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg ${isCurrent ? 'bg-cyan-500 text-slate-950' : 'bg-slate-950 text-cyan-400 border border-slate-800'} flex items-center justify-center shrink-0">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            </div>
+            <div class="min-w-0">
+              <p class="font-bold text-sm truncate font-mono-num">${escapeHtml(p.title)}</p>
+              <p class="text-[11px] text-slate-400 font-mono-num">
+                CUE: ${p.markers?.length || 0} 個 • ${dateStr}
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <button class="btn-open-proj touch-press text-xs px-3 py-1.5 rounded-lg ${isCurrent ? 'bg-cyan-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-200 border border-slate-700'}">
+              ${isCurrent ? '開く(現在)' : '開く'}
+            </button>
+            <button class="btn-delete-proj touch-press text-xs px-2.5 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40">
+              削除
+            </button>
+          </div>
+        `;
+
+        item.querySelector('.btn-open-proj').addEventListener('click', () => {
+          loadProjectFromDB(p.id);
+        });
+
+        item.querySelector('.btn-delete-proj').addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (confirm(`「${p.title}」を削除しますか？`)) {
+            deleteProjectFromDB(p.id);
+          }
+        });
+
+        savedProjectsList.appendChild(item);
+      });
+    }
+
+    async function loadProjectFromDB(id) {
+      try {
+        const db = await initDB();
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).get(id);
+        req.onsuccess = async () => {
+          const p = req.result;
+          if (!p) return;
+          state.markers = p.markers || [];
+          state.markers.sort((a, b) => a.timeSec - b.timeSec);
+          if (p.prerollEnabled !== undefined) state.prerollEnabled = p.prerollEnabled;
+          if (p.prerollSec !== undefined) state.prerollSec = p.prerollSec;
+          if (p.autoStopEnabled !== undefined) state.autoStopEnabled = p.autoStopEnabled;
+          if (p.loopEnabled !== undefined) state.loopEnabled = p.loopEnabled;
+          updateOptionsUI();
+
+          localStorage.setItem(LAST_OPENED_KEY, p.id);
+          const file = new File([p.audioBlob], p.title, { type: p.audioBlob.type });
+          await loadWavFile(file, true);
+          setMode('play');
+        };
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    async function deleteProjectFromDB(id) {
+      try {
+        const db = await initDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).delete(id);
+        tx.oncomplete = () => {
+          if (localStorage.getItem(LAST_OPENED_KEY) === id) {
+            localStorage.removeItem(LAST_OPENED_KEY);
+          }
+          loadSavedProjectsList();
+          showToast('プロジェクトを削除しました');
+        };
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    // 前回開いたプロジェクトの自動復帰
+    async function restoreLastProject() {
+      const lastId = localStorage.getItem(LAST_OPENED_KEY);
+      if (!lastId) return;
+      try {
+        const db = await initDB();
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).get(lastId);
+        req.onsuccess = async () => {
+          if (req.result) {
+            await loadProjectFromDB(lastId);
+          }
+        };
+      } catch (e) {
+        console.warn('Restore error:', e);
+      }
+    }
+
+    // ==========================================
+    // キーボードショートカット
+    // ==========================================
+    window.addEventListener('keydown', (e) => {
+      // 入力フォームでの入力時は無視
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+
+      const key = e.key;
+      if (key === ' ') {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (key === 's' || key === 'S') {
+        e.preventDefault();
+        stopAndReturnToCue();
+      } else if (key === 'm' || key === 'M') {
+        e.preventDefault();
+        addMarkerAtCurrentTime();
+      } else if (key === 'p' || key === 'P') {
+        e.preventDefault();
+        btnPrerollToggle.click();
+      } else if (key === 'a' || key === 'A') {
+        e.preventDefault();
+        btnAutoStopToggle.click();
+      } else if (key === 'l' || key === 'L') {
+        e.preventDefault();
+        btnLoopToggle.click();
+      } else if (key === '[' || key === 'ArrowUp') {
+        e.preventDefault();
+        prevCue();
+      } else if (key === ']' || key === 'ArrowDown') {
+        e.preventDefault();
+        nextCue();
+      } else if (key === 'ArrowLeft') {
+        e.preventDefault();
+        audioElement.currentTime = Math.max(0, audioElement.currentTime - (e.shiftKey ? 1 : 5));
+        updateProgress();
+      } else if (key === 'ArrowRight') {
+        e.preventDefault();
+        audioElement.currentTime = Math.min(state.audioDuration, audioElement.currentTime + (e.shiftKey ? 1 : 5));
+        updateProgress();
+      } else if (key >= '1' && key <= '9') {
+        const idx = parseInt(key, 10) - 1;
+        if (idx < state.markers.length) {
+          e.preventDefault();
+          jumpToMarker(idx);
+        }
+      } else if (key === '0') {
+        if (9 < state.markers.length) {
+          e.preventDefault();
+          jumpToMarker(9);
+        }
+      }
+    });
+
+    // 初期化処理
+    window.addEventListener('DOMContentLoaded', () => {
+      updateOptionsUI();
+      loadSavedProjectsList();
+      restoreLastProject();
+    });
+
+  </script>
+</body>
+</html>
